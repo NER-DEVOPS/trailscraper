@@ -1,7 +1,7 @@
 """Classes to deal with IAM Policies"""
 import json
 import os
-
+import pprint
 import re
 
 import six
@@ -75,16 +75,18 @@ class Action(BaseElement):
 class Statement(BaseElement):
     """Statement in an IAM Policy."""
 
-    def __init__(self, Action, Effect, Resource):  # pylint: disable=redefined-outer-name
+    def __init__(self, Action, Effect, Resource, Condition):  # pylint: disable=redefined-outer-name
         self.Action = Action  # pylint: disable=invalid-name
         self.Effect = Effect  # pylint: disable=invalid-name
         self.Resource = Resource  # pylint: disable=invalid-name
+        self.Condition = Condition  # pylint: disable=invalid-name
 
     def json_repr(self):
         return {
             'Action': self.Action,
             'Effect': self.Effect,
             'Resource': self.Resource,
+            'Condition': self.Condition,
         }
 
     def merge(self, other):
@@ -97,11 +99,13 @@ class Statement(BaseElement):
 
         actions = list(sorted(set(self.Action + other.Action), key=lambda action: action.json_repr()))
         resources = list(sorted(set(self.Resource + other.Resource)))
+        conditions = list(sorted(set(self.Condition + other.Condition)))
 
         return Statement(
             Effect=effect,
             Action=actions,
             Resource=resources,
+            Condition=conditions,
         )
 
     def __action_list_strings(self):

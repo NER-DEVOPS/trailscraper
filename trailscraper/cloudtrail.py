@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import pprint
 
 import boto3
 import pytz
@@ -164,11 +165,19 @@ class Record:
 
         if self.event_source == "apigateway.amazonaws.com":
             return self._to_api_gateway_statement()
-
+        ip = self.raw_source['sourceIPAddress']
+        agent = self.raw_source['userAgent']        
+       
         return Statement(
             Effect="Allow",
             Action=[Action(self._source_to_iam_prefix(), self._event_name_to_iam_action())],
-            Resource=sorted(self.resource_arns)
+            Resource=sorted(self.resource_arns),
+            Condition=[ agent + "|" + ip]
+            #'IpAddress' : {
+            #        'aws:SourceIp' : [ { 'agent':  agent, 'ip': ip } ]
+            #    }
+            #}
+            
         )
 
 
@@ -288,7 +297,8 @@ def last_event_timestamp_in_dir(log_dir):
 
 def load_from_api(from_date, to_date):
     """Loads the last 10 hours of cloudtrail events from the API"""
-    client = boto3.client('cloudtrail')
+    session  = boto3.session.Session(profile_name='prod')
+    client = session.client('cloudtrail')
     paginator = client.get_paginator('lookup_events')
     response_iterator = paginator.paginate(
         StartTime=from_date,

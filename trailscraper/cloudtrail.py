@@ -11,6 +11,7 @@ import boto3
 import pytz
 from toolz import pipe
 from toolz.curried import filter as filterz
+
 from toolz.curried import last as lastz
 from toolz.curried import map as mapz
 from toolz.curried import mapcat as mapcatz
@@ -293,6 +294,14 @@ def last_event_timestamp_in_dir(log_dir):
                             lastz)
 
     return most_recent_file.event_time
+
+
+def process_events_in_dir(log_dir, func):
+    """Process events"""
+    
+    for logfile in _valid_log_files(log_dir):
+        print(logfile)
+
 
 
 def load_from_api(from_date, to_date):

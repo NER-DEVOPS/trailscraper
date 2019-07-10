@@ -155,8 +155,10 @@ def _parse_action(action):
 
 def _parse_statement(statement):
     return Statement(Action=[_parse_action(action) for action in statement['Action']],
-                     Effect=statement['Effect'],
-                     Resource=statement['Resource'])
+                         Effect=statement['Effect'],
+                         Resource=statement['Resource'],
+                         Condition=statement['Condition']
+                         )
 
 
 def _parse_statements(json_data):

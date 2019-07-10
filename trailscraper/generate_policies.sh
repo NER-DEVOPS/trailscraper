@@ -1,4 +1,4 @@
-for x in  /home/ec2-user/.trailscraper/logs/AWSLogs/877023909339/CloudTrail/us-east-1/2019/*/*/*.json.gz;
+for x in  ~/.trailscraper/logs/AWSLogs/877023909339/CloudTrail/us-east-1/2019/*/*/*.json.gz;
 do
     if [ ! -f $x.policy ]; then
 	echo $x;

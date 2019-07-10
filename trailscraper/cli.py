@@ -3,13 +3,13 @@ import json
 import logging
 import os
 import time
-
+import pprint
 import click
 
 import trailscraper
 from trailscraper import time_utils, policy_generator
 from trailscraper.cloudtrail import load_from_dir, load_from_api, last_event_timestamp_in_dir, filter_records, \
-    parse_records
+    parse_records, _valid_log_files
 from trailscraper.guess import guess_statements
 from trailscraper.iam import parse_policy_document
 from trailscraper.s3_download import download_cloudtrail_logs
@@ -120,6 +120,40 @@ def guess(only):
     policy = guess_statements(policy, allowed_prefixes)
     click.echo(policy.to_json())
 
+@click.command("merge")
+@click.option('--log-dir', default="~/.trailscraper/logs", type=click.Path())
+def merge(log_dir):
+    log_dir = os.path.expanduser(log_dir)
+    print (log_dir)
+    statements = []
+    for logfile in _valid_log_files(log_dir):
+        fn = logfile.filename()
+        if fn.endswith('policy'):
+            print(logfile._path)
+            
+            with open(logfile._path) as fi:
+                try :
+                    policy = parse_policy_document(fi)
+                except Exception as e:
+                    print(e)
+                    #pprint.pprint(policy)
+                for x in policy.Statement:
+                    statements.append(x)
+    # apply large merge
+
+    click.echo(policy_generator.merge_policies(statements).to_json())
+
+        #process_events_in_dir(log_dir,)
+#    click.echo(last_event_timestamp_in_dir())
+
+#    stdin = click.get_text_stream('stdin')
+    
+#    
+#    allowed_prefixes = [s.title() for s in only]
+
+#    policy = guess_statements(policy, allowed_prefixes)
+#    click.echo(policy.to_json())
+    
 
 @click.command("last-event-timestamp")
 @click.option('--log-dir', default="~/.trailscraper/logs", type=click.Path(),
@@ -134,4 +168,5 @@ root_group.add_command(download)
 root_group.add_command(select)
 root_group.add_command(generate)
 root_group.add_command(guess)
+root_group.add_command(merge)
 root_group.add_command(last_event_timestamp)

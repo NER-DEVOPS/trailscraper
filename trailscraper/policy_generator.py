@@ -31,3 +31,17 @@ def generate_policy(selected_records):
         Version="2012-10-17",
         Statement=statements,
     )
+
+
+def merge_policies(statements):
+        statements = pipe(statements,
+                          filterz(lambda statement: statement is not None),
+                        _combine_statements_by(lambda statement: statement.Resource),
+                        _combine_statements_by(lambda statement: statement.Action),
+                        sortedz())
+
+        policy= PolicyDocument(
+                Version="2012-10-17",
+                Statement=statements,
+                )
+        return policy

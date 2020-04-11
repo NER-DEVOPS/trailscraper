@@ -174,7 +174,7 @@ class Record:
             Effect="Allow",
             Action=[Action(self._source_to_iam_prefix(), self._event_name_to_iam_action())],
             Resource=sorted(self.resource_arns),
-            Condition=[]
+            Condition=[ "user" + _user_arns(self.raw_source) ]
 #            Condition=[ agent + "|" + ip]
             #'IpAddress' : {
             #        'aws:SourceIp' : [ { 'agent':  agent, 'ip': ip } ]
@@ -226,16 +226,58 @@ class LogFile:
 def _resource_arns(json_record):
     error = json_record.get('errorMessage')
     if error :
+        if error in ('An unknown error occurred',
+                     'MultiFactorAuthentication failed with invalid MFA one time pass code. '):
+            return []
 
-        g = re.match(r'User: arn:aws:sts::(?P<account>\w+):assumed-role/(?P<role_name>\w+)/(?P<session_name>\w+) is not authorized to perform: (?P<eventSource>\w+):(?P<eventName>\w+) on resource: (?P<resource>.+)', error)
+        if error == 'Access Denied':
+            
+            if 'requestParameters' in json_record:
+                if 'bucketName' in json_record['requestParameters']:
+                    return [ 'arn:s3:' + json_record['requestParameters']['bucketName'] ]
+            return []
+        
+        g = re.match(r'User: arn:aws:sts::(?P<account>\w+):assumed-role/(?P<role_name>[\w\-]+)/(?P<session_name>[\-\w\.]+) is not authorized to perform: (?P<eventSource>[\w\-]+):(?P<eventName>\w+) on resource: (?P<resource>.+)', error)
+        #             'User: arn:aws:sts::106715121600:assumed-role/secureauth-saml/jdupont is not authorized to perform: health:DescribeEventAggregates on resource: *'
         if g :
             return [g.groupdict()['resource']]
         else:
-            import pdb
-            pdb.set_trace()
-            print(error)
-            raise Exception(error)
+            g = re.match(r'User: arn:aws:sts::(?P<account>\w+):assumed-role/(?P<role_name>[\w\-]+)/(?P<session_name>\w+) is not authorized to perform: (?P<eventSource>\w+):(?P<eventName>\w+)', error)
+            if g :
+                return []
+            else:
+
+                g = re.match(r'User: arn:aws:iam::(?P<account>\w+):user/(?P<user_name>[\w\.\-]+) is not authorized to perform: (?P<eventSource>\w+):(?P<eventName>\w+) on resource: (?P<resource>.+)', error)
+                if g :
+                    return [g.groupdict()['resource']]
+                else:        
+                    import pdb
+                    pdb.set_trace()
+                    print(error)
+                    raise Exception(error)
         
+    resources = json_record.get('resources', [])
+    arns = [resource['ARN'] for resource in resources if 'ARN' in resource]
+    return arns
+
+def _user_arns(json_record):
+    error = json_record.get('errorMessage')
+    if error :
+        g = re.match(r'User: (?P<user_arn>arn:[:/\w\-.]+) is not authorized to perform:(.*)', error)
+        if g :
+            return g.groupdict()['user_arn']
+        if error == 'An unknown error occurred' :
+            return json_record['userIdentity']['arn']
+        if error == 'Access Denied':
+            if 'arn' in json_record['userIdentity']:
+                return json_record['userIdentity']['arn']
+
+    if 'userIdentity' in json_record:
+        if 'accountId' in json_record['userIdentity']:
+            return json_record['userIdentity']['accountId']
+
+    import pdb
+    pdb.set_trace()
     resources = json_record.get('resources', [])
     arns = [resource['ARN'] for resource in resources if 'ARN' in resource]
     return arns

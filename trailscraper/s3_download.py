@@ -8,8 +8,10 @@ import pytz
 
 
 def _s3_key_prefix(prefix, date, account_id, region):
-    return "{}AWSLogs/{}/CloudTrail/{}/{}/{:02d}/{:02d}" \
+    f =  "{}AWSLogs/{}/CloudTrail/{}/{}/{:02d}/{:02d}" \
         .format(prefix, account_id, region, date.year, date.month, date.day)
+    print (f)
+    return f
 
 
 def _s3_key_prefixes(prefix, account_ids, regions, from_date, to_date):
@@ -56,6 +58,7 @@ def _s3_download_recursive(bucket, prefix, target_dir, profile):
 # pylint: disable=too-many-arguments
 def download_cloudtrail_logs(target_dir, bucket, cloudtrail_prefix, account_ids, regions, from_date, to_date, profile):
     """Downloads cloudtrail logs matching the given arguments to the target dir"""
+    print(cloudtrail_prefix, account_ids, regions, from_date, to_date)
     for prefix in _s3_key_prefixes(cloudtrail_prefix, account_ids, regions, from_date, to_date):
-        logging.debug("Downloading logs for %s", prefix)
+        print("Downloading logs for %s", prefix)
         _s3_download_recursive(bucket, prefix, target_dir, profile)

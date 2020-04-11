@@ -1,5 +1,6 @@
 """Functions to get CloudTrail records from disk"""
 import datetime
+import re
 import gzip
 import json
 import logging
@@ -173,7 +174,8 @@ class Record:
             Effect="Allow",
             Action=[Action(self._source_to_iam_prefix(), self._event_name_to_iam_action())],
             Resource=sorted(self.resource_arns),
-            Condition=[ agent + "|" + ip]
+            Condition=[]
+#            Condition=[ agent + "|" + ip]
             #'IpAddress' : {
             #        'aws:SourceIp' : [ { 'agent':  agent, 'ip': ip } ]
             #    }
@@ -210,7 +212,7 @@ class LogFile:
         try:
             with gzip.open(self._path, 'rt') as unzipped:
                 json_data = json.load(unzipped)
-                records = json_data['Records']
+                records = json_data
                 return parse_records(records)
         except (IOError, OSError) as error:
             logging.warning("Could not load %s: %s", self._path, error)
@@ -222,6 +224,18 @@ class LogFile:
 
 
 def _resource_arns(json_record):
+    error = json_record.get('errorMessage')
+    if error :
+
+        g = re.match(r'User: arn:aws:sts::(?P<account>\w+):assumed-role/(?P<role_name>\w+)/(?P<session_name>\w+) is not authorized to perform: (?P<eventSource>\w+):(?P<eventName>\w+) on resource: (?P<resource>.+)', error)
+        if g :
+            return [g.groupdict()['resource']]
+        else:
+            import pdb
+            pdb.set_trace()
+            print(error)
+            raise Exception(error)
+        
     resources = json_record.get('resources', [])
     arns = [resource['ARN'] for resource in resources if 'ARN' in resource]
     return arns
@@ -237,6 +251,9 @@ def _assumed_role_arn(json_record):
 
 
 def _parse_record(json_record):
+    if '@message' in json_record:
+        json_record = json.loads(json_record['@message'])
+        
     try:
         return Record(json_record['eventSource'],
                       json_record['eventName'],
@@ -304,9 +321,9 @@ def process_events_in_dir(log_dir, func):
 
 
 
-def load_from_api(from_date, to_date):
+def load_from_api(from_date, to_date,profile):
     """Loads the last 10 hours of cloudtrail events from the API"""
-    session  = boto3.session.Session(profile_name='prod')
+    session  = boto3.session.Session(profile_name=profile)
     client = session.client('cloudtrail')
     paginator = client.get_paginator('lookup_events')
     response_iterator = paginator.paginate(

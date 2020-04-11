@@ -14,17 +14,16 @@ from trailscraper.guess import guess_statements
 from trailscraper.iam import parse_policy_document
 from trailscraper.s3_download import download_cloudtrail_logs
 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+#logging.getLogger('botocore').setLevel(logging.INFO)
+#logging.getLogger('s3transfer').setLevel(logging.INFO)
 
 @click.group()
 @click.version_option(version=trailscraper.__version__)
 @click.option('--verbose', default=False, is_flag=True)
 def root_group(verbose):
     """A command-line tool to get valuable information out of AWS CloudTrail."""
-    logger = logging.getLogger()
-    if verbose:
-        logger.setLevel(logging.DEBUG)
-        logging.getLogger('botocore').setLevel(logging.INFO)
-        logging.getLogger('s3transfer').setLevel(logging.INFO)
 
 
 @click.command()
@@ -79,14 +78,15 @@ def download(bucket, prefix, account_id, region, log_dir, from_s, to_s, wait, pr
               help='Start date, e.g. "2017-01-01" or "-1days"')
 @click.option('--to', 'to_s', default="now", type=click.STRING,
               help='End date, e.g. "2017-01-01" or "now"')
-def select(log_dir, filter_assumed_role_arn, use_cloudtrail_api, from_s, to_s):
+@click.option('--profile', default="default", help='Profile name')
+def select(log_dir, filter_assumed_role_arn, use_cloudtrail_api, from_s, to_s, profile):
     """Finds all CloudTrail records matching the given filters and prints them."""
     log_dir = os.path.expanduser(log_dir)
     from_date = time_utils.parse_human_readable_time(from_s)
     to_date = time_utils.parse_human_readable_time(to_s)
 
     if use_cloudtrail_api:
-        records = load_from_api(from_date, to_date)
+        records = load_from_api(from_date, to_date, profile)
     else:
         records = load_from_dir(log_dir, from_date, to_date)
 
@@ -98,10 +98,11 @@ def select(log_dir, filter_assumed_role_arn, use_cloudtrail_api, from_s, to_s):
 
 
 @click.command("generate")
-def generate():
+@click.argument('input-file', type=click.File('r'))
+def generate(input_file):
     """Generates a policy that allows the events passed in through STDIN"""
-    stdin = click.get_text_stream('stdin')
-    records = parse_records(json.load(stdin)['Records'])
+#    stdin = click.get_text_stream('stdin')
+    records = parse_records(json.load(input_file))
 
     policy = policy_generator.generate_policy(records)
     click.echo(policy.to_json())

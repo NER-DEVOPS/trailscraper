@@ -164,18 +164,20 @@ class Record:
         """Converts record into a matching IAM Policy Statement"""
         if self.event_source == "sts.amazonaws.com" and self.event_name == "GetCallerIdentity":
             return None
-
+        if self.event_name == "ConsoleLogin":
+            return None
+        
         if self.event_source == "apigateway.amazonaws.com":
             return self._to_api_gateway_statement()
         ip = self.raw_source['sourceIPAddress']
-        agent = self.raw_source['userAgent']        
-       
+        agent = self.raw_source['userAgent']
+        
         return Statement(
             Effect="Allow",
             Action=[Action(self._source_to_iam_prefix(), self._event_name_to_iam_action())],
-            Resource=sorted(self.resource_arns),
-            Condition=[ "user" + _user_arns(self.raw_source) ]
-#            Condition=[ agent + "|" + ip]
+            Resource=sorted(list(set(self.resource_arns))),
+            #Condition=[ "user" + _user_arns(self.raw_source) ]
+            Condition=[ ]
             #'IpAddress' : {
             #        'aws:SourceIp' : [ { 'agent':  agent, 'ip': ip } ]
             #    }
@@ -183,6 +185,8 @@ class Record:
             
         )
 
+def debug(name, value):
+    pass
 
 class LogFile:
     """Represents a single CloudTrail Log File"""
@@ -226,8 +230,16 @@ class LogFile:
 def _resource_arns(json_record):
     error = json_record.get('errorMessage')
     if error :
+        if 'does not exist on EventBus default.' in error:
+            return []
+        
+        if 'The role with name' in error:
+            return []
+        if 'Function not found' in error:
+            return []
         if error in ('An unknown error occurred',
-                     'MultiFactorAuthentication failed with invalid MFA one time pass code. '):
+                     'MultiFactorAuthentication failed with invalid MFA one time pass code. ',
+                     'The specified log group does not exist.'):
             return []
 
         if error == 'Access Denied':
@@ -251,13 +263,79 @@ def _resource_arns(json_record):
                 if g :
                     return [g.groupdict()['resource']]
                 else:        
-                    import pdb
-                    pdb.set_trace()
+                    #import pdb
+                    #pdb.set_trace()
                     print(error)
                     raise Exception(error)
         
     resources = json_record.get('resources', [])
     arns = [resource['ARN'] for resource in resources if 'ARN' in resource]
+
+    if 'requestParameters' in json_record:
+        params = json_record['requestParameters']
+        if params :            
+            if 'arn' in params:
+                arns.append(params['arn'])
+            elif 'roleName' in params:
+                account_id = json_record["userIdentity"]["accountId"]
+                arns.append("arn:aws:iam::{}:role/{}".format(account_id,params['roleName']))
+            elif 'rule' in params:
+                account_id = json_record["userIdentity"]["accountId"]
+                region = json_record["awsRegion"]
+                arns = ["arn:aws:events:{}:{}:rule/{}".format(region, account_id, params['rule'])] # overwrite list
+            else:
+                if isinstance(params,dict):
+                    for key in params:
+                        v = params[key]
+                        if isinstance(v,dict):
+                            if 'arn' in v:                        
+                                arns.append(v['arn'])
+                            elif 'aws:lambda:FunctionArn' in v:
+                                arns.append(v['aws:lambda:FunctionArn'])
+                            else:
+                                debug("sub1",v)
+                                
+                        elif isinstance(v,str):
+                            if 'arn' in v:
+                                arns.append(v)
+                            else:
+                                debug("main",  v)
+                        elif isinstance(v,list):
+                            for v2 in v :
+                                if 'arn' in v2:
+                                    arns.append(v2['arn'])
+                                else:
+                                    debug("somelist",v2)
+                else:
+                    debug("other", params)
+
+    response_elements = json_record.get('responseElements', [])
+    if response_elements:
+        if 'arn' in response_elements:
+            arns.append(response_elements['arn'])
+        elif 'ruleArn' in response_elements:
+            arns.append(response_elements['ruleArn'])
+        else:
+            if isinstance(response_elements,dict):
+                for key in response_elements:
+                    v = response_elements[key]
+                    if isinstance(v,dict):
+                        if 'arn' in v:                        
+                            arns.append(v['arn'])
+                        elif 'aws:lambda:FunctionArn' in v:
+                            arns.append(v['aws:lambda:FunctionArn'])
+                        else:
+                            debug("sub2",v)
+                    else:
+                        if isinstance(v,str):
+                            if 'arn' in v:
+                                arns.append(v)
+                            else:
+                                debug("main", v)
+                        else:
+                            debug("v", v)
+            else:
+                debug("other", response_elements)
     return arns
 
 def _user_arns(json_record):
@@ -276,8 +354,7 @@ def _user_arns(json_record):
         if 'accountId' in json_record['userIdentity']:
             return json_record['userIdentity']['accountId']
 
-    import pdb
-    pdb.set_trace()
+
     resources = json_record.get('resources', [])
     arns = [resource['ARN'] for resource in resources if 'ARN' in resource]
     return arns

@@ -237,8 +237,17 @@ def _resource_arns(json_record):
             return []
         if 'Function not found' in error:
             return []
+        if 'Stack for' in error:            
+            return []
+        if  "have an EventInvokeConfig" in error:
+            return []
         if error in ('An unknown error occurred',
+                     'The resource you requested does not exist.',
+                     'The specified bucket does not have a website configuration',
+                     'The replication configuration was not found',
                      'MultiFactorAuthentication failed with invalid MFA one time pass code. ',
+                     'The bucket policy does not exist',
+                     'The server side encryption configuration was not found',
                      'The specified log group does not exist.'):
             return []
 
@@ -263,10 +272,12 @@ def _resource_arns(json_record):
                 if g :
                     return [g.groupdict()['resource']]
                 else:        
-                    #import pdb
-                    #pdb.set_trace()
-                    print(error)
-                    raise Exception(error)
+                    g = re.match(r'User: arn:aws:iam::(?P<account>\w+):user/(?P<user_name>[\w\.\-]+) is not authorized to perform: (?P<eventSource>\w+):(?P<eventName>\w+)', error)
+                    if g :
+                        return []
+                    else:        
+                        print(error)
+                        #raise Exception(error)
         
     resources = json_record.get('resources', [])
     arns = [resource['ARN'] for resource in resources if 'ARN' in resource]
@@ -303,7 +314,10 @@ def _resource_arns(json_record):
                         elif isinstance(v,list):
                             for v2 in v :
                                 if 'arn' in v2:
-                                    arns.append(v2['arn'])
+                                    if isinstance(v2,str):
+                                        arns.append(v2)
+                                    else:
+                                        arns.append(v2['arn'])
                                 else:
                                     debug("somelist",v2)
                 else:

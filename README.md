@@ -1,3 +1,12 @@
+# Hacks
+
+We take the results of the pyinsights that also has the status on the first line,
+we delete the first line and then split the data into one record per line that is read in. 
+
+    cat ~/devops/pyinsights/codebuild_data.json | sed 1d | jq .[] -c  | docker run  -i  trailscraper  generate  
+	
+
+
 # TrailScraper
 
 [![PyPi Release](https://img.shields.io/pypi/v/trailscraper.svg)](https://pypi.python.org/pypi/trailscraper)

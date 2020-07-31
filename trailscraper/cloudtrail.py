@@ -388,6 +388,7 @@ def _parse_record(json_record):
         json_record = json.loads(json_record['@message'])
         
     try:
+        #print(json_record)
         return Record(json_record['eventSource'],
                       json_record['eventName'],
                       event_time=datetime.datetime.strptime(json_record['eventTime'],

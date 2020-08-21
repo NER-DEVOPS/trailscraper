@@ -98,8 +98,6 @@ def select(log_dir, filter_assumed_role_arn, use_cloudtrail_api, from_s, to_s, p
 
 
 @click.command("generate")
-#@click.argument('input-file', type=click.File('r'))
-#def generate(input_file):
 def generate():
     print ("generate")
     """Generates a policy that allows the events passed in through STDIN"""
@@ -112,7 +110,28 @@ def generate():
         except Exception as e:
             print(e)
             print(line)
-        records = records.union(parse_records(do))
+        records = records.union(parse_records(d))
+    policy = policy_generator.generate_policy(records)
+    click.echo(policy.to_json())
+
+@click.command("generate2")
+@click.argument('input-file', type=click.File('r'))
+def generate2(input_file):
+#def generate():
+    print ("generate")
+    """Generates a policy that allows the events passed in through STDIN"""
+    #input_file = click.get_text_stream('stdin')
+    records = set()
+    #import pdb
+    #pdb.set_trace()
+    for line in input_file:
+        d = []
+        try :
+            d.append( json.loads(line))
+        except Exception as e:
+            print(e)
+            print(line)
+        records = records.union(parse_records(d))
     policy = policy_generator.generate_policy(records)
     click.echo(policy.to_json())
 
@@ -177,6 +196,7 @@ def last_event_timestamp(log_dir):
 root_group.add_command(download)
 root_group.add_command(select)
 root_group.add_command(generate)
+root_group.add_command(generate2)
 root_group.add_command(guess)
 root_group.add_command(merge)
 root_group.add_command(last_event_timestamp)

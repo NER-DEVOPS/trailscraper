@@ -2,5 +2,4 @@ build :
 	docker build . -t trailscraper
 
 test :
-	#docker run -it trailscraper  generate ~/devops/pyinsights/codebuild_data.json
-	cat ~/devops/pyinsights/codebuild_data.json | docker run  -i  trailscraper  generate 
+	 cat jdupont.json | DOCKER_HOST=tcp://localhost:2375 docker run  -i  106715121600.dkr.ecr.us-east-1.amazonaws.com/nrg-public:trailscraper  generate 
